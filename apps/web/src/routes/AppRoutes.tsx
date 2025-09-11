@@ -9,6 +9,7 @@ const UploadPage = React.lazy(() => import('@/pages/UploadPage'))
 const ProcessingPage = React.lazy(() => import('@/pages/ProcessingPage'))
 const PreviewPage = React.lazy(() => import('@/pages/PreviewPage'))
 const ExportPage = React.lazy(() => import('@/pages/ExportPage'))
+const ApiTestPage = React.lazy(() => import('@/pages/ApiTestPage'))
 
 // Loading component
 const PageLoader: React.FC = () => (
@@ -29,9 +30,10 @@ export const AppRoutes: React.FC = () => {
         <Routes>
           <Route path="/" element={<UploadPage />} />
           <Route path="/upload" element={<UploadPage />} />
-          <Route path="/processing" element={<ProcessingPage />} />
-          <Route path="/preview" element={<PreviewPage />} />
+          <Route path="/processing/:id" element={<ProcessingPage />} />
+          <Route path="/preview/:id" element={<PreviewPage />} />
           <Route path="/export" element={<ExportPage />} />
+          <Route path="/api-test" element={<ApiTestPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

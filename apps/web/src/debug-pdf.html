@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Processing Debug</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <h1>PDF Processing Debug</h1>
+    <div>
+        <h3>Test 1: Direct File Upload</h3>
+        <input type="file" id="localFile" accept=".pdf" />
+        <div id="localResult"></div>
+    </div>
+    
+    <div>
+        <h3>Test 2: Download from URL</h3>
+        <input type="text" id="urlInput" placeholder="Enter PDF URL" style="width: 400px;" />
+        <button onclick="testUrlDownload()">Test Download</button>
+        <div id="urlResult"></div>
+    </div>
+
+    <script>
+        // Configure PDF.js with correct worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.mjs';
+
+        // Test 1: Direct file processing
+        document.getElementById('localFile').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const resultDiv = document.getElementById('localResult');
+            resultDiv.innerHTML = 'Processing local file...';
+
+            try {
+                const result = await processPDF(file);
+                resultDiv.innerHTML = `
+                    <h4>Success!</h4>
+                    <p><strong>Text Length:</strong> ${result.textLength}</p>
+                    <p><strong>Page Count:</strong> ${result.pageCount}</p>
+                    <p><strong>Word Count:</strong> ${result.qualityMetrics.wordCount}</p>
+                    <h5>Extracted Text (first 500 chars):</h5>
+                    <pre>${result.text.substring(0, 500)}...</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h4>Error!</h4>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        });
+
+        // Test 2: URL download
+        async function testUrlDownload() {
+            const url = document.getElementById('urlInput').value;
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            const resultDiv = document.getElementById('urlResult');
+            resultDiv.innerHTML = 'Downloading and processing...';
+
+            try {
+                console.log('Downloading from URL:', url);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/pdf',
+                    },
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to download: ${response.status} ${response.statusText}`);
+                }
+                
+                const blob = await response.blob();
+                console.log('Downloaded blob:', blob.size, 'bytes, type:', blob.type);
+                
+                const file = new File([blob], 'document.pdf', { type: 'application/pdf' });
+                const result = await processPDF(file);
+                
+                resultDiv.innerHTML = `
+                    <h4>Success!</h4>
+                    <p><strong>Text Length:</strong> ${result.textLength}</p>
+                    <p><strong>Page Count:</strong> ${result.pageCount}</p>
+                    <p><strong>Word Count:</strong> ${result.qualityMetrics.wordCount}</p>
+                    <h5>Extracted Text (first 500 chars):</h5>
+                    <pre>${result.text.substring(0, 500)}...</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h4>Error!</h4>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        }
+
+        async function processPDF(file) {
+            console.log('Processing PDF:', file.name, 'size:', file.size, 'type:', file.type);
+            
+            // Validate file
+            if (file.type !== 'application/pdf') {
+                throw new Error('File must be a PDF document');
+            }
+            if (file.size === 0) {
+                throw new Error('File appears to be empty or corrupted');
+            }
+
+            // Convert to ArrayBuffer
+            const arrayBuffer = await file.arrayBuffer();
+            console.log('ArrayBuffer size:', arrayBuffer.byteLength);
+            
+            // Load PDF
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            console.log('PDF loaded, pages:', pdf.numPages);
+            
+            let fullText = '';
+            let pageCount = pdf.numPages;
+            
+            // Extract text from all pages
+            for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+                console.log(`Processing page ${pageNum}/${pageCount}`);
+                const page = await pdf.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                
+                const pageText = textContent.items
+                    .map((item) => item.str)
+                    .join(' ');
+                
+                fullText += pageText + '\n';
+            }
+
+            // Clean text
+            const cleanedText = fullText
+                .replace(/\s+/g, ' ')
+                .replace(/^\d+\s*$/gm, '')
+                .replace(/^Page \d+$/gm, '')
+                .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n')
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+
+            // Calculate metrics
+            const words = cleanedText.split(/\s+/).filter(word => word.length > 0);
+            const sentences = cleanedText.split(/[.!?]+/).filter(sentence => sentence.trim().length > 0);
+            
+            const qualityMetrics = {
+                wordCount: words.length,
+                sentenceCount: sentences.length,
+                averageWordsPerSentence: words.length / Math.max(sentences.length, 1),
+                readabilityScore: 50, // Simplified
+                textDensity: cleanedText.length / Math.max(pageCount, 1),
+                hasImages: false,
+            };
+
+            if (cleanedText.length < 100) {
+                throw new Error('Extracted text is too short for question generation');
+            }
+
+            return {
+                text: cleanedText,
+                pageCount: pageCount,
+                textLength: cleanedText.length,
+                qualityMetrics,
+                processingTime: Date.now(),
+                metadata: {
+                    originalFilename: file.name,
+                    fileSize: file.size,
+                    extractionMethod: 'pdfjs-dist',
+                },
+            };
+        }
+    </script>
+</body>
+</html>

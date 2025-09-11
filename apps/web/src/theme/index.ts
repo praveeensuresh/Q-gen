@@ -113,8 +113,8 @@ const createThemeOptions = (mode: PaletteMode): ThemeOptions => ({
     },
     grey: colors.grey,
     background: {
-      default: mode === 'light' ? '#fafafa' : '#121212',
-      paper: mode === 'light' ? '#ffffff' : '#1e1e1e',
+      default: mode === 'light' ? '#fafafa' : '#2d2d2d',
+      paper: mode === 'light' ? '#ffffff' : '#3a3a3a',
     },
     text: {
       primary: mode === 'light' ? '#212121' : '#ffffff',
@@ -242,6 +242,14 @@ const createThemeOptions = (mode: PaletteMode): ThemeOptions => ({
       styleOverrides: {
         root: {
           boxShadow: '0 1px 3px rgba(0, 0, 0, 0.12)',
+          backgroundColor: mode === 'dark' ? '#2d2d2d' : undefined,
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: mode === 'dark' ? '#2d2d2d' : undefined,
         },
       },
     },

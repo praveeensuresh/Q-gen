@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Processing Test</title>
+</head>
+<body>
+    <h1>PDF Processing Test</h1>
+    <input type="file" id="pdfFile" accept=".pdf" />
+    <div id="result"></div>
+
+    <script type="module">
+        import { pdfProcessingService } from './services/pdfProcessingService.js';
+
+        document.getElementById('pdfFile').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Processing...';
+
+            try {
+                const result = await pdfProcessingService.instance.extractText(file);
+                resultDiv.innerHTML = `
+                    <h3>Success!</h3>
+                    <p><strong>Text Length:</strong> ${result.textLength}</p>
+                    <p><strong>Page Count:</strong> ${result.pageCount}</p>
+                    <p><strong>Word Count:</strong> ${result.qualityMetrics.wordCount}</p>
+                    <p><strong>Readability Score:</strong> ${result.qualityMetrics.readabilityScore.toFixed(2)}</p>
+                    <h4>Extracted Text (first 500 chars):</h4>
+                    <pre>${result.text.substring(0, 500)}...</pre>
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>Error!</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <pre>${error.stack}</pre>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

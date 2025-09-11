@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
+import { useNavigate } from 'react-router-dom'
 import {
   Box,
   Typography,
@@ -8,6 +9,7 @@ import {
   LinearProgress,
   Paper,
   Chip,
+  useTheme,
 } from '@mui/material'
 import {
   CloudUpload,
@@ -15,7 +17,10 @@ import {
   CheckCircle,
   Error as ErrorIcon,
 } from '@mui/icons-material'
-import { config } from '@/config/env'
+import { config } from '../../../config/env'
+import { documentService } from '../../../services/documentService'
+import { useDocumentProcessingSelectors } from '../../../stores/documentProcessingStore'
+import type { DocumentResponse } from '../../../types/document'
 
 interface FileUploadProps {
   onFileSelect?: (file: File) => void
@@ -38,6 +43,9 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   onUploadComplete,
   onUploadError,
 }) => {
+  const navigate = useNavigate()
+  const theme = useTheme()
+  const { startUpload, updateProcessingProgress } = useDocumentProcessingSelectors()
   const [uploadState, setUploadState] = useState<UploadState>({
     file: null,
     isUploading: false,
@@ -91,28 +99,60 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     [validateFile, onFileSelect, onUploadError]
   )
 
-  const simulateUpload = useCallback(
+  const uploadFile = useCallback(
     async (file: File) => {
-      setUploadState(prev => ({ ...prev, isUploading: true, progress: 0 }))
+      setUploadState(prev => ({ ...prev, isUploading: true, progress: 0, error: null }))
       onUploadStart?.()
 
-      // Simulate upload progress
-      for (let i = 0; i <= 100; i += 10) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-        setUploadState(prev => ({ ...prev, progress: i }))
-      }
+      try {
+        // Create document record for processing
+        const document: DocumentResponse = {
+          id: crypto.randomUUID(),
+          filename: file.name,
+          file_path: '', // Will be set after upload
+          file_size: file.size,
+          upload_status: 'uploading',
+          processing_progress: 0,
+          created_at: new Date().toISOString(),
+        }
 
-      // Simulate success
-      setUploadState(prev => ({
-        ...prev,
-        isUploading: false,
-        progress: 100,
-        success: true,
-        error: null,
-      }))
-      onUploadComplete?.(file)
+        // Start upload process
+        startUpload(document as any)
+        updateProcessingProgress(0, 'uploading', 'Uploading file...')
+
+        // Upload file to server
+        const result = await documentService.instance.uploadDocument({ file })
+
+        // Update progress
+        updateProcessingProgress(50, 'extracting', 'Starting text extraction...')
+        setUploadState(prev => ({ ...prev, progress: 50 }))
+
+        // Navigate to processing page
+        navigate(`/processing/${result.id}`)
+
+        // Complete upload
+        setUploadState(prev => ({
+          ...prev,
+          isUploading: false,
+          progress: 100,
+          success: true,
+          error: null,
+        }))
+        onUploadComplete?.(file)
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Upload failed'
+        setUploadState(prev => ({
+          ...prev,
+          isUploading: false,
+          progress: 0,
+          success: false,
+          error: errorMessage,
+        }))
+        onUploadError?.(errorMessage)
+      }
     },
-    [onUploadStart, onUploadComplete]
+    [onUploadStart, onUploadComplete, onUploadError, startUpload, updateProcessingProgress, navigate]
   )
 
   const onDrop = useCallback(
@@ -137,7 +177,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
   const handleUpload = () => {
     if (uploadState.file && !uploadState.isUploading) {
-      simulateUpload(uploadState.file)
+      uploadFile(uploadState.file)
     }
   }
 
@@ -152,15 +192,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   }
 
   const getDropzoneStyles = () => {
-    let borderColor = '#e0e0e0'
-    let backgroundColor = '#fafafa'
+    let borderColor = theme.palette.divider
+    let backgroundColor = theme.palette.background.paper
 
     if (isDragActive && !isDragReject) {
-      borderColor = '#2196f3'
-      backgroundColor = '#e3f2fd'
+      borderColor = theme.palette.primary.main
+      backgroundColor = theme.palette.primary.light + '20' // 20% opacity
     } else if (isDragReject) {
-      borderColor = '#f44336'
-      backgroundColor = '#ffebee'
+      borderColor = theme.palette.error.main
+      backgroundColor = theme.palette.error.light + '20' // 20% opacity
     }
 
     return {
@@ -172,8 +212,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       cursor: 'pointer',
       transition: 'all 0.2s ease-in-out',
       '&:hover': {
-        borderColor: '#2196f3',
-        backgroundColor: '#f5f5f5',
+        borderColor: theme.palette.primary.main,
+        backgroundColor: theme.palette.action.hover,
       },
     }
   }

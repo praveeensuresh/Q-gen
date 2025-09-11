@@ -16,6 +16,23 @@ export const config = {
     allowedFileTypes: import.meta.env.VITE_ALLOWED_FILE_TYPES || 'application/pdf',
   },
 
+  // PDF Processing Configuration
+  pdfProcessing: {
+    timeout: Number(import.meta.env.VITE_PDF_PROCESSING_TIMEOUT) || 30000, // 30 seconds
+    minTextLength: Number(import.meta.env.VITE_TEXT_MIN_LENGTH) || 100,
+    qualityThreshold: Number(import.meta.env.VITE_TEXT_QUALITY_THRESHOLD) || 0.7,
+  },
+
+  // Vercel Blob Storage Configuration
+  blobStorage: {
+    token: import.meta.env.VITE_VERCEL_BLOB_READ_WRITE_TOKEN || '',
+  },
+
+  // OpenAI API Configuration
+  openai: {
+    apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
+  },
+
   // Application Configuration
   app: {
     name: import.meta.env.VITE_APP_NAME || 'AI Question Generator',
@@ -32,6 +49,8 @@ export const validateEnvironment = (): void => {
   const requiredVars = [
     'VITE_SUPABASE_URL',
     'VITE_SUPABASE_ANON_KEY',
+    'VITE_VERCEL_BLOB_READ_WRITE_TOKEN',
+    'VITE_OPENAI_API_KEY',
   ]
 
   const missingVars = requiredVars.filter(

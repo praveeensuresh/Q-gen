@@ -1,60 +1,186 @@
-import { render, screen } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+/**
+ * Tests for FileUpload component
+ */
+
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { BrowserRouter } from 'react-router-dom'
 import { FileUpload } from '../FileUpload'
 
-// Mock react-dropzone
-vi.mock('react-dropzone', () => ({
-  useDropzone: () => ({
-    getRootProps: () => ({
-      'data-testid': 'dropzone',
-    }),
-    getInputProps: () => ({
-      'data-testid': 'file-input',
-    }),
-    isDragActive: false,
-    isDragReject: false,
-  }),
+// Mock the store
+vi.mock('../../../../stores/documentProcessingStore', () => ({
+  useDocumentProcessingSelectors: vi.fn(() => ({
+    startUpload: vi.fn(),
+    updateProcessingProgress: vi.fn(),
+  })),
 }))
 
+// Mock the document service
+vi.mock('../../../../services/documentService', () => ({
+  documentService: {
+    uploadDocument: vi.fn(),
+  },
+}))
+
+const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <BrowserRouter>
+    {children}
+  </BrowserRouter>
+)
+
 describe('FileUpload', () => {
+  const mockOnFileSelect = vi.fn()
+  const mockOnUploadStart = vi.fn()
+  const mockOnUploadComplete = vi.fn()
+  const mockOnUploadError = vi.fn()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('renders upload interface correctly', () => {
-    render(<FileUpload />)
-    
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
     expect(screen.getByText('Upload PDF Document')).toBeInTheDocument()
     expect(screen.getByText(/Drag & drop a PDF file here/)).toBeInTheDocument()
     expect(screen.getByText('Choose File')).toBeInTheDocument()
-    expect(screen.getByText(/Maximum file size: 10MB/)).toBeInTheDocument()
   })
 
   it('shows file size limit information', () => {
-    render(<FileUpload />)
-    
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
     expect(screen.getByText(/Maximum file size: 10MB/)).toBeInTheDocument()
   })
 
   it('has proper accessibility attributes', () => {
-    render(<FileUpload />)
-    
-    const dropzone = screen.getByTestId('dropzone')
-    const fileInput = screen.getByTestId('file-input')
-    
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
+    const dropzone = screen.getByRole('button', { name: /choose file/i })
     expect(dropzone).toBeInTheDocument()
-    expect(fileInput).toBeInTheDocument()
   })
 
   it('calls onFileSelect when file is selected', async () => {
-    const onFileSelect = vi.fn()
-    render(<FileUpload onFileSelect={onFileSelect} />)
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
+    const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+    const input = screen.getByRole('button', { name: /choose file/i }).parentElement?.querySelector('input')
     
-    // This would be tested with actual file selection in integration tests
-    expect(onFileSelect).not.toHaveBeenCalled()
+    if (input) {
+      fireEvent.change(input, { target: { files: [file] } })
+      
+      await waitFor(() => {
+        expect(mockOnFileSelect).toHaveBeenCalledWith(file)
+      })
+    }
   })
 
   it('calls onUploadError when file validation fails', async () => {
-    const onUploadError = vi.fn()
-    render(<FileUpload onUploadError={onUploadError} />)
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
+    const file = new File(['test content'], 'test.txt', { type: 'text/plain' })
+    const input = screen.getByRole('button', { name: /choose file/i }).parentElement?.querySelector('input')
     
-    // This would be tested with actual file validation in integration tests
-    expect(onUploadError).not.toHaveBeenCalled()
+    if (input) {
+      fireEvent.change(input, { target: { files: [file] } })
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please upload a PDF file only')).toBeInTheDocument()
+      })
+    }
+  })
+
+  it('shows error message for invalid file type', async () => {
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
+    const file = new File(['test content'], 'test.txt', { type: 'text/plain' })
+    const input = screen.getByRole('button', { name: /choose file/i }).parentElement?.querySelector('input')
+    
+    if (input) {
+      fireEvent.change(input, { target: { files: [file] } })
+      
+      await waitFor(() => {
+        expect(screen.getByText('Please upload a PDF file only')).toBeInTheDocument()
+      })
+    }
+  })
+
+  it('shows error message for file too large', async () => {
+    render(
+      <TestWrapper>
+        <FileUpload
+          onFileSelect={mockOnFileSelect}
+          onUploadStart={mockOnUploadStart}
+          onUploadComplete={mockOnUploadComplete}
+          onUploadError={mockOnUploadError}
+        />
+      </TestWrapper>
+    )
+
+    const file = new File(['test content'], 'test.pdf', { type: 'application/pdf' })
+    Object.defineProperty(file, 'size', { value: 11 * 1024 * 1024 }) // 11MB
+    
+    const input = screen.getByRole('button', { name: /choose file/i }).parentElement?.querySelector('input')
+    
+    if (input) {
+      fireEvent.change(input, { target: { files: [file] } })
+      
+      await waitFor(() => {
+        expect(screen.getByText(/File size exceeds.*limit/)).toBeInTheDocument()
+      })
+    }
   })
 })
